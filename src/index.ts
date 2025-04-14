@@ -42,6 +42,8 @@ import GetPreferredStores from "./Controllers/Users/Preferences/GetPreferredStor
 import GetPreferredCategories from "./Controllers/Users/Preferences/GetPreferredCategories";
 import shoppingListRoutes from "./routes/shoppingListRoutes";
 import wishlistRoutes from "./routes/wishlistRoutes";
+import GetNearbyStores from "./Controllers/location/GetNearbyStores";
+import GetNearbyDeals from "./Controllers/location/GetNearbyDeals";
 
 dotenv.config();
 const app: Express = express();
@@ -141,6 +143,11 @@ app.get("/user/:email/preferred-categories", GetPreferredCategories);
 // Add these lines where you register routes
 app.use('/api', shoppingListRoutes);
 app.use('/api', wishlistRoutes);
+
+// Location-based API Routes
+app.get("/location/nearby-stores", GetNearbyStores);
+app.get("/location/nearby-deals", GetNearbyDeals);
+
 
 
 app.listen(port, () => {
