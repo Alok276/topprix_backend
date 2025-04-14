@@ -40,6 +40,8 @@ import AddPreferredCategory from "./Controllers/Users/Preferences/AddPreferredCa
 import RemovePreferredCategory from "./Controllers/Users/Preferences/RemovePreferredCategory";
 import GetPreferredStores from "./Controllers/Users/Preferences/GetPreferredStores";
 import GetPreferredCategories from "./Controllers/Users/Preferences/GetPreferredCategories";
+import shoppingListRoutes from "./routes/shoppingListRoutes";
+import wishlistRoutes from "./routes/wishlistRoutes";
 
 dotenv.config();
 const app: Express = express();
@@ -127,7 +129,7 @@ app.put("/coupons/:id", getUserFromEmail, isAdminOrRetailer, ensureStoreOwnershi
 //Delete call
 app.delete("/coupons/:id", getUserFromEmail, isAdminOrRetailer, ensureStoreOwnership, DeleteCoupon);
 
-// Add the routes to your Express app (after your existing routes)
+
 // User Preferences Routes
 app.post("/user/:email/preferred-stores/add", AddPreferredStore);
 app.post("/user/:email/preferred-stores/remove", RemovePreferredStore);
@@ -135,6 +137,10 @@ app.post("/user/:email/preferred-categories/add", AddPreferredCategory);
 app.post("/user/:email/preferred-categories/remove", RemovePreferredCategory);
 app.get("/user/:email/preferred-stores", GetPreferredStores);
 app.get("/user/:email/preferred-categories", GetPreferredCategories);
+
+// Add these lines where you register routes
+app.use('/api', shoppingListRoutes);
+app.use('/api', wishlistRoutes);
 
 
 app.listen(port, () => {
