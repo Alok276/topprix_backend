@@ -1,3 +1,4 @@
+// src/Controllers/coupons/CreateCoupon.ts
 import { Request, Response } from "express";
 import { prisma } from "../../Db/prismaDb";
 import { UserRole } from "../../../prisma/generated/prisma";
@@ -16,7 +17,9 @@ const CreateCoupon = async (req: Request, res: Response) => {
             endDate,
             isOnline,
             isInStore,
-            categoryIds
+            categoryIds,
+            isPremium = false,
+            price = null
         } = req.body;
 
         // Validate required fields
@@ -37,28 +40,18 @@ const CreateCoupon = async (req: Request, res: Response) => {
             return;
         }
 
-        // Additional check for retailer permissions (backup to middleware check)
-        // This ensures that even if the middleware is bypassed somehow, we still validate permissions
-        if (req.user?.role === UserRole.RETAILER) {
-            // Retailers should only create coupons for stores they manage
-            const hasAccess = await prisma.store.findFirst({
-                where: {
-                    id: storeId,
-                    // This association may need to be adjusted based on your data model
-                    favoredBy: {
-                        some: {
-                            id: req.user.id
-                        }
-                    }
-                }
-            });
+        // Check if user is a retailer or admin (this assumes req.user is set by middleware)
+        if (req.user?.role !== UserRole.RETAILER && req.user?.role !== UserRole.ADMIN) {
+            res.status(403).json({ message: "Only retailers or admins can create coupons" });
+            return;
+        }
 
-            if (!hasAccess) {
-                res.status(403).json({
-                    message: "Retailers can only create coupons for their own stores"
-                });
-                return;
-            }
+        // Additional validation for premium coupons
+        if (isPremium && price === null) {
+            res.status(400).json({
+                message: "Price is required for premium coupons"
+            });
+            return;
         }
 
         // Prepare category connections if provided
@@ -82,6 +75,8 @@ const CreateCoupon = async (req: Request, res: Response) => {
                 endDate: new Date(endDate),
                 isOnline: isOnline ?? true,
                 isInStore: isInStore ?? true,
+                isPremium,
+                price: isPremium ? price : null,
                 categories: categoryConnections
             },
             include: {
@@ -90,9 +85,14 @@ const CreateCoupon = async (req: Request, res: Response) => {
             }
         });
 
+        // Return response with premium information if applicable
         res.status(201).json({
             message: "Coupon created successfully",
-            coupon
+            coupon,
+            isPremium,
+            premiumInstructions: isPremium
+                ? "This is a premium coupon. Users will need to purchase it to use it."
+                : null
         });
         return;
     } catch (error) {

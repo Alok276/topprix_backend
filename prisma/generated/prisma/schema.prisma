@@ -1,8 +1,4 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// prisma/schema.prisma (corrected)
 
 generator client {
   provider = "prisma-client-js"
@@ -20,21 +16,108 @@ enum UserRole {
   RETAILER
 }
 
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  TRIALING
+  UNPAID
+  INCOMPLETE
+  INCOMPLETE_EXPIRED
+}
+
+enum PaymentType {
+  SUBSCRIPTION
+  FLYER_UPLOAD
+  COUPON_PURCHASE
+}
+
 model User {
-  id                  String         @id @default(uuid())
-  email               String         @unique
-  phone               String?
-  name                String?
-  role                UserRole       @default(USER)
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime       @updatedAt
-  location            String?
-  preferredStores     Store[]        @relation("UserFavoriteStores")
-  preferredCategories Category[]     @relation("UserPreferredCategories")
-  savedFlyers         Flyer[]        @relation("UserSavedFlyers")
-  savedCoupons        Coupon[]       @relation("UserSavedCoupons")
-  shoppingLists       ShoppingList[]
-  wishlist            WishlistItem[]
+  id                    String              @id @default(uuid())
+  email                 String              @unique
+  phone                 String?
+  name                  String?
+  role                  UserRole            @default(USER)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  location              String?
+  stripeCustomerId      String?             @unique
+  hasActiveSubscription Boolean             @default(false) // Only relevant for RETAILER role
+  subscriptionId        String?
+  subscriptionStatus    SubscriptionStatus?
+  pricingPlanId         String?
+  currentPeriodEnd      DateTime?
+  preferredStores       Store[]             @relation("UserFavoriteStores")
+  preferredCategories   Category[]          @relation("UserPreferredCategories")
+  savedFlyers           Flyer[]             @relation("UserSavedFlyers")
+  savedCoupons          Coupon[]            @relation("UserSavedCoupons")
+  shoppingLists         ShoppingList[]
+  wishlist              WishlistItem[]
+  payments              Payment[]
+  subscriptions         Subscription[]
+  purchasedCoupons      PurchasedCoupon[]
+}
+
+model PricingPlan {
+  id            String         @id @default(uuid())
+  name          String
+  description   String
+  stripePriceId String
+  amount        Float
+  currency      String         @default("usd")
+  interval      String         @default("month") // month, year, etc.
+  isActive      Boolean        @default(true)
+  features      String[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id                   String             @id @default(uuid())
+  userId               String
+  user                 User               @relation(fields: [userId], references: [id])
+  pricingPlanId        String
+  pricingPlan          PricingPlan        @relation(fields: [pricingPlanId], references: [id])
+  stripeSubscriptionId String
+  status               SubscriptionStatus
+  currentPeriodStart   DateTime
+  currentPeriodEnd     DateTime
+  cancelAtPeriodEnd    Boolean            @default(false)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  payments             Payment[]
+}
+
+model Payment {
+  id              String        @id @default(uuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id])
+  amount          Float
+  currency        String        @default("usd")
+  stripePaymentId String
+  paymentType     PaymentType
+  status          String
+  metadata        Json?
+  subscriptionId  String?
+  subscription    Subscription? @relation(fields: [subscriptionId], references: [id])
+  flyerId         String?
+  flyer           Flyer?        @relation(fields: [flyerId], references: [id])
+  couponId        String? // Added reference to coupon
+  coupon          Coupon?       @relation("PaymentCoupon", fields: [couponId], references: [id])
+  createdAt       DateTime      @default(now())
+}
+
+model PurchasedCoupon {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  couponId        String
+  coupon          Coupon   @relation(fields: [couponId], references: [id])
+  amount          Float
+  currency        String   @default("usd")
+  stripePaymentId String
+  purchasedAt     DateTime @default(now())
 }
 
 model Store {
@@ -74,11 +157,15 @@ model Flyer {
   startDate   DateTime
   endDate     DateTime
   isSponsored Boolean     @default(false)
+  isPremium   Boolean     @default(false)
+  price       Float? // Price for individual flyer upload (if not subscription)
+  isPaid      Boolean     @default(false)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   categories  Category[]  @relation("FlyerCategories")
   savedBy     User[]      @relation("UserSavedFlyers")
   items       FlyerItem[]
+  payments    Payment[]
 }
 
 model FlyerItem {
@@ -97,10 +184,10 @@ model FlyerItem {
 }
 
 model Coupon {
-  id          String     @id @default(uuid())
+  id          String            @id @default(uuid())
   title       String
   storeId     String
-  store       Store      @relation(fields: [storeId], references: [id])
+  store       Store             @relation(fields: [storeId], references: [id])
   code        String?
   barcodeUrl  String?
   qrCodeUrl   String?
@@ -108,12 +195,16 @@ model Coupon {
   description String?
   startDate   DateTime
   endDate     DateTime
-  isOnline    Boolean    @default(true)
-  isInStore   Boolean    @default(true)
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  categories  Category[] @relation("CouponCategories")
-  savedBy     User[]     @relation("UserSavedCoupons")
+  isOnline    Boolean           @default(true)
+  isInStore   Boolean           @default(true)
+  isPremium   Boolean           @default(false)
+  price       Float? // Price to purchase this coupon (if it's premium)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  categories  Category[]        @relation("CouponCategories")
+  savedBy     User[]            @relation("UserSavedCoupons")
+  purchasedBy PurchasedCoupon[]
+  payments    Payment[]         @relation("PaymentCoupon")
 }
 
 model ShoppingList {

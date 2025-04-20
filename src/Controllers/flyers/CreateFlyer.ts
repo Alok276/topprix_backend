@@ -1,6 +1,7 @@
-// src/Controllers/Flyers/CreateFlyer.ts
+// src/Controllers/flyers/CreateFlyer.ts
 import { Request, Response } from "express";
 import { prisma } from "../../Db/prismaDb";
+import { UserRole } from "../../../prisma/generated/prisma";
 
 const CreateFlyer = async (req: Request, res: Response) => {
     try {
@@ -11,7 +12,9 @@ const CreateFlyer = async (req: Request, res: Response) => {
             startDate,
             endDate,
             isSponsored,
-            categoryIds
+            categoryIds,
+            isPremium = false,
+            isPaid = false
         } = req.body;
 
         // Basic validation
@@ -32,6 +35,23 @@ const CreateFlyer = async (req: Request, res: Response) => {
             return;
         }
 
+        // Check if user is a retailer (this assumes req.user is set by middleware)
+        if (req.user?.role !== UserRole.RETAILER) {
+            res.status(403).json({ message: "Only retailers can create flyers" });
+            return;
+        }
+
+        // Check if the retailer has an active subscription
+        const hasActiveSubscription = req.user.hasActiveSubscription === true &&
+            (req.user.subscriptionStatus === 'ACTIVE' ||
+                req.user.subscriptionStatus === 'TRIALING');
+
+        // Get default flyer price for pay-per-upload (this could be stored in a settings table)
+        const defaultFlyerPrice = 9.99; // Default price for flyer uploads
+
+        // Determine if payment is required
+        const requiresPayment = !hasActiveSubscription && !isPaid;
+
         // Prepare data object
         const data: any = {
             title,
@@ -40,6 +60,9 @@ const CreateFlyer = async (req: Request, res: Response) => {
             startDate: new Date(startDate),
             endDate: new Date(endDate),
             isSponsored: isSponsored || false,
+            isPremium,
+            isPaid, // If they've already paid, mark as paid
+            price: requiresPayment ? defaultFlyerPrice : null
         };
 
         // Connect categories if provided
@@ -58,9 +81,19 @@ const CreateFlyer = async (req: Request, res: Response) => {
             }
         });
 
+        // Return response with payment information if needed
         res.status(201).json({
-            message: "Flyer created successfully",
-            flyer
+            message: requiresPayment
+                ? "Flyer created, but payment is required before it becomes active"
+                : "Flyer created successfully",
+            flyer,
+            requiresPayment,
+            paymentAmount: requiresPayment ? defaultFlyerPrice : 0,
+            currency: "usd",
+            paymentType: "FLYER_UPLOAD",
+            paymentInstructions: requiresPayment
+                ? "Please complete the payment to activate this flyer. Use the payment endpoint with the flyerId."
+                : null
         });
         return;
     } catch (error) {

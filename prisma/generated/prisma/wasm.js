@@ -125,7 +125,65 @@ exports.Prisma.UserScalarFieldEnum = {
   role: 'role',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt',
-  location: 'location'
+  location: 'location',
+  stripeCustomerId: 'stripeCustomerId',
+  hasActiveSubscription: 'hasActiveSubscription',
+  subscriptionId: 'subscriptionId',
+  subscriptionStatus: 'subscriptionStatus',
+  pricingPlanId: 'pricingPlanId',
+  currentPeriodEnd: 'currentPeriodEnd'
+};
+
+exports.Prisma.PricingPlanScalarFieldEnum = {
+  id: 'id',
+  name: 'name',
+  description: 'description',
+  stripePriceId: 'stripePriceId',
+  amount: 'amount',
+  currency: 'currency',
+  interval: 'interval',
+  isActive: 'isActive',
+  features: 'features',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.SubscriptionScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  pricingPlanId: 'pricingPlanId',
+  stripeSubscriptionId: 'stripeSubscriptionId',
+  status: 'status',
+  currentPeriodStart: 'currentPeriodStart',
+  currentPeriodEnd: 'currentPeriodEnd',
+  cancelAtPeriodEnd: 'cancelAtPeriodEnd',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.PaymentScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  amount: 'amount',
+  currency: 'currency',
+  stripePaymentId: 'stripePaymentId',
+  paymentType: 'paymentType',
+  status: 'status',
+  metadata: 'metadata',
+  subscriptionId: 'subscriptionId',
+  flyerId: 'flyerId',
+  couponId: 'couponId',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.PurchasedCouponScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  couponId: 'couponId',
+  amount: 'amount',
+  currency: 'currency',
+  stripePaymentId: 'stripePaymentId',
+  purchasedAt: 'purchasedAt'
 };
 
 exports.Prisma.StoreScalarFieldEnum = {
@@ -156,6 +214,9 @@ exports.Prisma.FlyerScalarFieldEnum = {
   startDate: 'startDate',
   endDate: 'endDate',
   isSponsored: 'isSponsored',
+  isPremium: 'isPremium',
+  price: 'price',
+  isPaid: 'isPaid',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 };
@@ -185,6 +246,8 @@ exports.Prisma.CouponScalarFieldEnum = {
   endDate: 'endDate',
   isOnline: 'isOnline',
   isInStore: 'isInStore',
+  isPremium: 'isPremium',
+  price: 'price',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 };
@@ -223,6 +286,11 @@ exports.Prisma.SortOrder = {
   desc: 'desc'
 };
 
+exports.Prisma.NullableJsonNullValueInput = {
+  DbNull: Prisma.DbNull,
+  JsonNull: Prisma.JsonNull
+};
+
 exports.Prisma.QueryMode = {
   default: 'default',
   insensitive: 'insensitive'
@@ -232,14 +300,40 @@ exports.Prisma.NullsOrder = {
   first: 'first',
   last: 'last'
 };
+
+exports.Prisma.JsonNullValueFilter = {
+  DbNull: Prisma.DbNull,
+  JsonNull: Prisma.JsonNull,
+  AnyNull: Prisma.AnyNull
+};
 exports.UserRole = exports.$Enums.UserRole = {
   USER: 'USER',
   ADMIN: 'ADMIN',
   RETAILER: 'RETAILER'
 };
 
+exports.SubscriptionStatus = exports.$Enums.SubscriptionStatus = {
+  ACTIVE: 'ACTIVE',
+  PAST_DUE: 'PAST_DUE',
+  CANCELED: 'CANCELED',
+  TRIALING: 'TRIALING',
+  UNPAID: 'UNPAID',
+  INCOMPLETE: 'INCOMPLETE',
+  INCOMPLETE_EXPIRED: 'INCOMPLETE_EXPIRED'
+};
+
+exports.PaymentType = exports.$Enums.PaymentType = {
+  SUBSCRIPTION: 'SUBSCRIPTION',
+  FLYER_UPLOAD: 'FLYER_UPLOAD',
+  COUPON_PURCHASE: 'COUPON_PURCHASE'
+};
+
 exports.Prisma.ModelName = {
   User: 'User',
+  PricingPlan: 'PricingPlan',
+  Subscription: 'Subscription',
+  Payment: 'Payment',
+  PurchasedCoupon: 'PurchasedCoupon',
   Store: 'Store',
   Category: 'Category',
   Flyer: 'Flyer',

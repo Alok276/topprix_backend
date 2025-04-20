@@ -44,6 +44,10 @@ import shoppingListRoutes from "./routes/shoppingListRoutes";
 import wishlistRoutes from "./routes/wishlistRoutes";
 import GetNearbyStores from "./Controllers/location/GetNearbyStores";
 import GetNearbyDeals from "./Controllers/location/GetNearbyDeals";
+import paymentRoutes from "./routes/paymentRoutes";
+import subscriptionRoutes from "./routes/subscriptionRoutes";
+import pricingPlanRoutes from "./routes/pricingPlanRoutes";
+import webhookRoutes from "./routes/webhookRoutes";
 
 dotenv.config();
 const app: Express = express();
@@ -148,6 +152,22 @@ app.use('/api', wishlistRoutes);
 app.get("/location/nearby-stores", GetNearbyStores);
 app.get("/location/nearby-deals", GetNearbyDeals);
 
+app.use('/api/webhooks/stripe', express.raw({ type: 'application/json' }));
+
+// Regular JSON parsing for all other routes
+app.use((req, res, next) => {
+  if (req.originalUrl === '/api/webhooks/stripe') {
+    next();
+  } else {
+    express.json()(req, res, next);
+  }
+});
+
+// Add new routes
+app.use('/api', paymentRoutes);
+app.use('/api', subscriptionRoutes);
+app.use('/api', pricingPlanRoutes);
+app.use('/api', webhookRoutes);
 
 
 app.listen(port, () => {

@@ -7,6 +7,8 @@ declare global {
     namespace Express {
         interface Request {
             user?: {
+                subscriptionStatus: string;
+                hasActiveSubscription: boolean;
                 id: string;
                 email: string;
                 role: UserRole;
@@ -40,7 +42,9 @@ export const getUserFromEmail = async (req: Request, res: Response, next: NextFu
         req.user = {
             id: user.id,
             email: user.email,
-            role: user.role as UserRole
+            role: user.role as UserRole,
+            subscriptionStatus: user.subscriptionStatus || '',
+            hasActiveSubscription: user.subscriptionStatus === 'ACTIVE'
         };
 
         next();
