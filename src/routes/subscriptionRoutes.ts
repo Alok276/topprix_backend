@@ -6,6 +6,7 @@ import CreateSubscription from '../Controllers/subscriptions/CreateSubscription'
 import CancelSubscription from '../Controllers/subscriptions/CancelSubscription';
 import GetUserSubscription from '../Controllers/subscriptions/GetUserSubscription';
 import UpdateSubscription from '../Controllers/subscriptions/UpdateSubscription';
+import HandleCheckoutSession from '../Controllers/subscriptions/HandleCheckoutSession';
 
 
 const router = express.Router();
@@ -19,5 +20,7 @@ router.post('/subscriptions', CreateSubscription);
 router.post('/subscriptions/cancel', CancelSubscription);
 router.get('/users/:userId/subscription', GetUserSubscription);
 router.put('/subscriptions', UpdateSubscription);
+
+router.post('/subscriptions/checkout/complete', HandleCheckoutSession);
 
 export default router;

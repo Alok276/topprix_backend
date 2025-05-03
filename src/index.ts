@@ -48,6 +48,7 @@ import paymentRoutes from "./routes/paymentRoutes";
 import subscriptionRoutes from "./routes/subscriptionRoutes";
 import pricingPlanRoutes from "./routes/pricingPlanRoutes";
 import webhookRoutes from "./routes/webhookRoutes";
+import StripeWebhookHandler from "./Controllers/webhooks/StripeWebhookHandler";
 
 dotenv.config();
 const app: Express = express();
@@ -69,12 +70,17 @@ app.use(
   })
 );
 
+app.post('/api/webhooks/stripe',
+  express.raw({ type: 'application/json' }),
+  StripeWebhookHandler
+);
+
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.get("/", (req, res) => {
-  res.send("Hello World!");
+  res.send("Dive in the World of branding");
 });
 
 
@@ -152,16 +158,6 @@ app.use('/api', wishlistRoutes);
 app.get("/location/nearby-stores", GetNearbyStores);
 app.get("/location/nearby-deals", GetNearbyDeals);
 
-app.use('/api/webhooks/stripe', express.raw({ type: 'application/json' }));
-
-// Regular JSON parsing for all other routes
-app.use((req, res, next) => {
-  if (req.originalUrl === '/api/webhooks/stripe') {
-    next();
-  } else {
-    express.json()(req, res, next);
-  }
-});
 
 // Add new routes
 app.use('/api', paymentRoutes);

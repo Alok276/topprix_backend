@@ -113,15 +113,42 @@ const UpdateSubscription = async (req: Request, res: Response) => {
     // Cast to our custom type
     const updatedStripeSubscription = updatedStripeSubscriptionResponse as unknown as StripeSubscriptionResponse;
 
-    // Calculate dates safely
-    const currentPeriodEnd = new Date(updatedStripeSubscription.current_period_end * 1000);
+    // Calculate start date from Stripe response
+    const currentPeriodStart = new Date(updatedStripeSubscription.current_period_start * 1000);
+
+    // Calculate proper end date based on plan interval instead of using Stripe's end date
+    let currentPeriodEnd = new Date(currentPeriodStart);
+    switch (newPlan.interval.toLowerCase()) {
+      case 'day':
+        currentPeriodEnd.setDate(currentPeriodEnd.getDate() + 1);
+        break;
+      case 'week':
+        currentPeriodEnd.setDate(currentPeriodEnd.getDate() + 7);
+        break;
+      case 'month':
+        currentPeriodEnd.setMonth(currentPeriodEnd.getMonth() + 1);
+        break;
+      case 'year':
+        currentPeriodEnd.setFullYear(currentPeriodEnd.getFullYear() + 1);
+        break;
+      default:
+        // Fallback to Stripe's value if interval is unrecognized
+        currentPeriodEnd = new Date(updatedStripeSubscription.current_period_end * 1000);
+    }
+
+    console.log('Updating subscription with period:', {
+      start: currentPeriodStart,
+      calculatedEnd: currentPeriodEnd,
+      stripeEnd: new Date(updatedStripeSubscription.current_period_end * 1000),
+      interval: newPlan.interval
+    });
 
     // Update the subscription in the database
     const updatedSubscription = await prisma.subscription.update({
       where: { id: subscription.id },
       data: {
         pricingPlanId: newPlan.id,
-        currentPeriodEnd
+        currentPeriodEnd // Using our calculated date
       },
       include: {
         pricingPlan: true
@@ -133,7 +160,7 @@ const UpdateSubscription = async (req: Request, res: Response) => {
       where: { id: userId },
       data: {
         pricingPlanId: newPlan.id,
-        currentPeriodEnd
+        currentPeriodEnd // Using our calculated date
       }
     });
 
@@ -158,7 +185,7 @@ const UpdateSubscription = async (req: Request, res: Response) => {
     res.status(200).json({
       message: "Subscription updated successfully",
       subscription: updatedSubscription,
-      effectiveDate: new Date(updatedStripeSubscription.current_period_start * 1000)
+      effectiveDate: currentPeriodStart
     });
     return;
 

@@ -4,30 +4,22 @@ import { prisma } from "../../Db/prismaDb";
 import { stripe } from "../../config/stripe";
 import { SubscriptionStatus, UserRole } from "../../../prisma/generated/prisma";
 
-// Define a type that includes the fields we need from Stripe
-interface StripeSubscriptionWithInvoice {
-    id: string;
-    current_period_start: number;
-    current_period_end: number;
-    status: string;
-    cancel_at_period_end: boolean;
-    latest_invoice?: {
-        payment_intent?: {
-            client_secret?: string;
-        }
-    };
-}
-
 const CreateSubscription = async (req: Request, res: Response) => {
     try {
-        const { userId, pricingPlanId } = req.body;
+        const { userId, pricingPlanId, successUrl, cancelUrl } = req.body;
 
+        // Validate required fields
         if (!userId || !pricingPlanId) {
             res.status(400).json({
                 message: "Missing required fields: userId and pricingPlanId are required"
             });
             return;
         }
+
+        // Default return URLs if not provided
+        const defaultBaseUrl = process.env.FRONTEND_URL || 'https://topprix.re';
+        const defaultSuccessUrl = `${defaultBaseUrl}/subscription/success?session_id={CHECKOUT_SESSION_ID}`;
+        const defaultCancelUrl = `${defaultBaseUrl}/subscription/canceled`;
 
         // Find the user
         const user = await prisma.user.findUnique({
@@ -85,65 +77,52 @@ const CreateSubscription = async (req: Request, res: Response) => {
             });
         }
 
-        // Create Stripe subscription
-        const stripeResponse = await stripe.subscriptions.create({
+        // Create a temporary database entry for the subscription
+        const tempSubscription = await prisma.subscription.create({
+            data: {
+                userId: user.id,
+                pricingPlanId: pricingPlan.id,
+                stripeSubscriptionId: 'pending_checkout',
+                status: 'INCOMPLETE',
+                currentPeriodStart: new Date(),
+                currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Default to 30 days
+                cancelAtPeriodEnd: false
+            }
+        });
+
+        // Create a checkout session for the subscription
+        const session = await stripe.checkout.sessions.create({
             customer: stripeCustomerId,
-            items: [
+            payment_method_types: ['card'],
+            line_items: [
                 {
-                    price: pricingPlan.stripePriceId
-                }
+                    price: pricingPlan.stripePriceId,
+                    quantity: 1,
+                },
             ],
-            payment_behavior: 'default_incomplete',
-            expand: ['latest_invoice.payment_intent'],
+            mode: 'subscription',
+            success_url: successUrl || defaultSuccessUrl,
+            cancel_url: cancelUrl || defaultCancelUrl,
             metadata: {
                 userId: user.id,
-                pricingPlanId: pricingPlan.id
-            }
-        });
-
-        // Type assertion to ensure we have the fields we need
-        const subscription = stripeResponse as unknown as StripeSubscriptionWithInvoice;
-
-        // Extract client secret for payment confirmation
-        const clientSecret = subscription?.latest_invoice?.payment_intent?.client_secret;
-
-        // Map Stripe subscription status to our enum
-        const subscriptionStatus = mapStripeStatusToEnum(subscription.status);
-
-        // Calculate dates safely
-        const currentPeriodStart = new Date(subscription.current_period_start * 1000);
-        const currentPeriodEnd = new Date(subscription.current_period_end * 1000);
-
-        // Create subscription record in database
-        const dbSubscription = await prisma.subscription.create({
-            data: {
-                userId: user.id,
                 pricingPlanId: pricingPlan.id,
-                stripeSubscriptionId: subscription.id,
-                status: subscriptionStatus,
-                currentPeriodStart,
-                currentPeriodEnd,
-                cancelAtPeriodEnd: subscription.cancel_at_period_end
+                tempSubscriptionId: tempSubscription.id
+            },
+            subscription_data: {
+                metadata: {
+                    userId: user.id,
+                    pricingPlanId: pricingPlan.id,
+                    tempSubscriptionId: tempSubscription.id
+                }
             }
         });
 
-        // Update user subscription status
-        await prisma.user.update({
-            where: { id: user.id },
-            data: {
-                subscriptionId: dbSubscription.id,
-                subscriptionStatus: subscriptionStatus,
-                pricingPlanId: pricingPlan.id,
-                currentPeriodEnd,
-                hasActiveSubscription: subscriptionStatus === 'ACTIVE' || subscriptionStatus === 'TRIALING'
-            }
-        });
-
+        // Return the checkout session URL and ID
         res.status(200).json({
-            message: "Subscription created successfully",
-            subscriptionId: subscription.id,
-            clientSecret: clientSecret,
-            subscription: dbSubscription
+            message: "Subscription checkout session created",
+            checkoutUrl: session.url,
+            sessionId: session.id,
+            tempSubscriptionId: tempSubscription.id
         });
         return;
 
@@ -154,28 +133,6 @@ const CreateSubscription = async (req: Request, res: Response) => {
             error: error instanceof Error ? error.message : "Unknown error"
         });
         return;
-    }
-};
-
-// Helper function to map Stripe status to our enum
-const mapStripeStatusToEnum = (stripeStatus: string): SubscriptionStatus => {
-    switch (stripeStatus) {
-        case 'active':
-            return 'ACTIVE';
-        case 'past_due':
-            return 'PAST_DUE';
-        case 'canceled':
-            return 'CANCELED';
-        case 'unpaid':
-            return 'UNPAID';
-        case 'trialing':
-            return 'TRIALING';
-        case 'incomplete':
-            return 'INCOMPLETE';
-        case 'incomplete_expired':
-            return 'INCOMPLETE_EXPIRED';
-        default:
-            return 'INCOMPLETE';
     }
 };
 

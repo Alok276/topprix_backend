@@ -1,6 +1,8 @@
 // src/routes/webhookRoutes.ts
 import express from 'express';
-import StripeWebhookHandler from '../Controllers/StripeWebhookHandler';
+import StripeWebhookHandler from '../Controllers/webhooks/StripeWebhookHandler';
+
+
 
 
 const router = express.Router();
