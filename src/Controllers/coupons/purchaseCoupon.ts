@@ -97,7 +97,7 @@ const PurchaseCoupon = async (req: Request, res: Response) => {
         // Create a payment intent in Stripe
         const paymentIntent = await stripe.paymentIntents.create({
             amount: Math.round((coupon.price || 0) * 100), // Stripe uses cents
-            currency: "usd", // You might want to make this configurable
+            currency: "eur", // You might want to make this configurable
             customer: stripeCustomerId,
             metadata: {
                 userId,

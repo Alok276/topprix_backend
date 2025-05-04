@@ -9,8 +9,8 @@ const CreatePricingPlan = async (req: Request, res: Response) => {
             name,
             description,
             amount,
-            currency = "usd",
-            interval = "month",
+            currency, // Use the currency provided in the request
+            interval, // Use the interval provided in the request
             features
         } = req.body;
 
@@ -18,6 +18,19 @@ const CreatePricingPlan = async (req: Request, res: Response) => {
         if (!name || !description || !amount || !features) {
             res.status(400).json({
                 message: "Missing required fields: name, description, amount, and features are required"
+            });
+            return;
+        }
+
+        // Set default values if not provided
+        const planCurrency = currency || "eur"; // Default to EUR instead of eur
+        const planInterval = interval || "month"; // Default to monthly if not specified
+
+        // Validate interval is a valid value
+        const validIntervals = ['day', 'week', 'month', 'year'];
+        if (!validIntervals.includes(planInterval)) {
+            res.status(400).json({
+                message: "Invalid interval. Must be one of: day, week, month, year"
             });
             return;
         }
@@ -35,9 +48,9 @@ const CreatePricingPlan = async (req: Request, res: Response) => {
         const price = await stripe.prices.create({
             product: product.id,
             unit_amount: Math.round(amount * 100), // Stripe uses cents
-            currency,
+            currency: planCurrency, // Use the currency from the request or default
             recurring: {
-                interval: interval as 'day' | 'week' | 'month' | 'year',
+                interval: planInterval as 'day' | 'week' | 'month' | 'year', // Use the interval from the request or default
             },
             metadata: {
                 type: "RETAILER"
@@ -51,8 +64,8 @@ const CreatePricingPlan = async (req: Request, res: Response) => {
                 description,
                 stripePriceId: price.id,
                 amount,
-                currency,
-                interval,
+                currency: planCurrency,
+                interval: planInterval,
                 features,
                 isActive: true
             }

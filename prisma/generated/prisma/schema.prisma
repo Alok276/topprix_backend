@@ -1,4 +1,4 @@
-// prisma/schema.prisma (corrected)
+// prisma/schema.prisma
 
 generator client {
   provider = "prisma-client-js"
@@ -42,7 +42,7 @@ model User {
   updatedAt             DateTime            @updatedAt
   location              String?
   stripeCustomerId      String?             @unique
-  hasActiveSubscription Boolean             @default(false) // Only relevant for RETAILER role
+  hasActiveSubscription Boolean             @default(false)
   subscriptionId        String?
   subscriptionStatus    SubscriptionStatus?
   pricingPlanId         String?
@@ -64,8 +64,8 @@ model PricingPlan {
   description   String
   stripePriceId String
   amount        Float
-  currency      String         @default("usd")
-  interval      String         @default("month") // month, year, etc.
+  currency      String         @default("eur")
+  interval      String         @default("month")
   isActive      Boolean        @default(true)
   features      String[]
   createdAt     DateTime       @default(now())
@@ -94,7 +94,7 @@ model Payment {
   userId          String
   user            User          @relation(fields: [userId], references: [id])
   amount          Float
-  currency        String        @default("usd")
+  currency        String        @default("eur")
   stripePaymentId String
   paymentType     PaymentType
   status          String
@@ -103,7 +103,7 @@ model Payment {
   subscription    Subscription? @relation(fields: [subscriptionId], references: [id])
   flyerId         String?
   flyer           Flyer?        @relation(fields: [flyerId], references: [id])
-  couponId        String? // Added reference to coupon
+  couponId        String?
   coupon          Coupon?       @relation("PaymentCoupon", fields: [couponId], references: [id])
   createdAt       DateTime      @default(now())
 }
@@ -115,7 +115,7 @@ model PurchasedCoupon {
   couponId        String
   coupon          Coupon   @relation(fields: [couponId], references: [id])
   amount          Float
-  currency        String   @default("usd")
+  currency        String   @default("eur")
   stripePaymentId String
   purchasedAt     DateTime @default(now())
 }

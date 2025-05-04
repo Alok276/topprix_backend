@@ -118,6 +118,15 @@ const UpdateSubscription = async (req: Request, res: Response) => {
 
     // Calculate proper end date based on plan interval instead of using Stripe's end date
     let currentPeriodEnd = new Date(currentPeriodStart);
+
+    // Make sure the date is valid before trying to modify it
+    if (isNaN(currentPeriodEnd.getTime())) {
+      // If date is invalid, use current date as fallback
+      currentPeriodEnd = new Date();
+      console.log('Warning: Invalid start date, using current date as fallback');
+    }
+
+    // Calculate the end date based on the interval
     switch (newPlan.interval.toLowerCase()) {
       case 'day':
         currentPeriodEnd.setDate(currentPeriodEnd.getDate() + 1);
@@ -132,23 +141,19 @@ const UpdateSubscription = async (req: Request, res: Response) => {
         currentPeriodEnd.setFullYear(currentPeriodEnd.getFullYear() + 1);
         break;
       default:
-        // Fallback to Stripe's value if interval is unrecognized
-        currentPeriodEnd = new Date(updatedStripeSubscription.current_period_end * 1000);
+        // Fallback to 30 days if interval is unrecognized
+        currentPeriodEnd.setDate(currentPeriodEnd.getDate() + 30);
+        console.log('Warning: Unknown interval type, using 30 days as default');
     }
 
-    console.log('Updating subscription with period:', {
-      start: currentPeriodStart,
-      calculatedEnd: currentPeriodEnd,
-      stripeEnd: new Date(updatedStripeSubscription.current_period_end * 1000),
-      interval: newPlan.interval
-    });
+    console.log('Using calculated period end date:', currentPeriodEnd);
 
     // Update the subscription in the database
     const updatedSubscription = await prisma.subscription.update({
       where: { id: subscription.id },
       data: {
         pricingPlanId: newPlan.id,
-        currentPeriodEnd // Using our calculated date
+        currentPeriodEnd
       },
       include: {
         pricingPlan: true
@@ -160,7 +165,7 @@ const UpdateSubscription = async (req: Request, res: Response) => {
       where: { id: userId },
       data: {
         pricingPlanId: newPlan.id,
-        currentPeriodEnd // Using our calculated date
+        currentPeriodEnd
       }
     });
 

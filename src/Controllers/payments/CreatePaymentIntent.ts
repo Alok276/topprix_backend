@@ -9,7 +9,7 @@ const CreatePaymentIntent = async (req: Request, res: Response) => {
         const {
             userId,
             amount,
-            currency = "usd",
+            currency = "eur",
             paymentType,
             flyerId,
             couponId

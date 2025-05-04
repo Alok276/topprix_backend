@@ -1,3 +1,4 @@
+// src/index.ts
 import express, { Express } from "express";
 import dotenv from "dotenv";
 import session from "express-session";
@@ -52,7 +53,7 @@ import StripeWebhookHandler from "./Controllers/webhooks/StripeWebhookHandler";
 
 dotenv.config();
 const app: Express = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 3001;
 
 const SESSION_SECRET_KEY = process.env.SESSION_SECRET_KEY;
 
@@ -113,15 +114,13 @@ app.get("/categories", GetCategories);
 app.post("/category", isAdminOrRetailer, CreateCategory);
 
 
-// FLYER API ROUTES
-app.post("/flyers", CreateFlyer);
+app.post("/flyers", isAdminOrRetailer, CreateFlyer);
 app.get("/flyers", GetFlyers);
 app.get("/flyers/:id", GetFlyerByID);
-app.post("/flyers/save", SaveFlyer);
-app.post("/flyers/items", AddFlyerItem);
-app.delete("/flyers/:id", DeleteFlyer);
-app.delete("/flyers/items/:id", DeleteFlyerItem);
-
+app.post("/flyers/save", isAdminOrRetailer, SaveFlyer);
+app.post("/flyers/items", isAdminOrRetailer, AddFlyerItem);
+app.delete("/flyers/:id", isAdminOrRetailer, DeleteFlyer);
+app.delete("/flyers/items/:id", isAdminOrRetailer, DeleteFlyerItem);
 // COUPON API ROUTES
 //save user coupons
 app.post("/coupons/save", getUserFromEmail, SaveCoupon);

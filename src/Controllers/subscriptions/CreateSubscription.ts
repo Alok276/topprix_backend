@@ -4,22 +4,26 @@ import { prisma } from "../../Db/prismaDb";
 import { stripe } from "../../config/stripe";
 import { SubscriptionStatus, UserRole } from "../../../prisma/generated/prisma";
 
+// Define a type that includes the fields we need from Stripe
+interface StripeSubscriptionWithInvoice {
+    id: string;
+    current_period_start: number;
+    current_period_end: number;
+    status: string;
+    cancel_at_period_end: boolean;
+    latest_invoice?: any; // Using any to handle both string ID and expanded object
+}
+
 const CreateSubscription = async (req: Request, res: Response) => {
     try {
-        const { userId, pricingPlanId, successUrl, cancelUrl } = req.body;
+        const { userId, pricingPlanId } = req.body;
 
-        // Validate required fields
         if (!userId || !pricingPlanId) {
             res.status(400).json({
                 message: "Missing required fields: userId and pricingPlanId are required"
             });
             return;
         }
-
-        // Default return URLs if not provided
-        const defaultBaseUrl = process.env.FRONTEND_URL || 'https://topprix.re';
-        const defaultSuccessUrl = `${defaultBaseUrl}/subscription/success?session_id={CHECKOUT_SESSION_ID}`;
-        const defaultCancelUrl = `${defaultBaseUrl}/subscription/canceled`;
 
         // Find the user
         const user = await prisma.user.findUnique({
@@ -31,10 +35,10 @@ const CreateSubscription = async (req: Request, res: Response) => {
             return;
         }
 
-        // Check if user is a retailer
+        // Check if user is a retailer - ENFORCE RETAILER ONLY SUBSCRIPTION
         if (user.role !== UserRole.RETAILER) {
-            res.status(400).json({
-                message: "Subscriptions are only available for retailers"
+            res.status(403).json({
+                message: "Subscriptions are only available for retailers. Regular users cannot subscribe."
             });
             return;
         }
@@ -77,52 +81,79 @@ const CreateSubscription = async (req: Request, res: Response) => {
             });
         }
 
-        // Create a temporary database entry for the subscription
-        const tempSubscription = await prisma.subscription.create({
+        // Create Stripe subscription
+        const stripeResponse = await stripe.subscriptions.create({
+            customer: stripeCustomerId,
+            items: [
+                {
+                    price: pricingPlan.stripePriceId
+                }
+            ],
+            payment_behavior: 'default_incomplete',
+            expand: ['latest_invoice'], // Expand invoice to get the hosted invoice URL
+            metadata: {
+                userId: user.id,
+                pricingPlanId: pricingPlan.id
+            }
+        });
+
+        // Type assertion to ensure we have the fields we need
+        const subscription = stripeResponse as unknown as StripeSubscriptionWithInvoice;
+
+        // Extract the hosted invoice URL from the invoice
+        let hostedInvoiceUrl = null;
+        let invoicePdfUrl = null;
+
+        if (subscription.latest_invoice && typeof subscription.latest_invoice !== 'string') {
+            const invoice = subscription.latest_invoice;
+            hostedInvoiceUrl = invoice.hosted_invoice_url || null;
+            invoicePdfUrl = invoice.invoice_pdf || null;
+        }
+
+        // Map Stripe subscription status to our enum
+        const subscriptionStatus = mapStripeStatusToEnum(subscription.status);
+
+        // Calculate dates safely with default values
+        const currentPeriodStart = subscription.current_period_start
+            ? new Date(subscription.current_period_start * 1000)
+            : new Date();
+
+        const currentPeriodEnd = subscription.current_period_end
+            ? new Date(subscription.current_period_end * 1000)
+            : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // Default to 30 days
+
+        // Create subscription record in database
+        const dbSubscription = await prisma.subscription.create({
             data: {
                 userId: user.id,
                 pricingPlanId: pricingPlan.id,
-                stripeSubscriptionId: 'pending_checkout',
-                status: 'INCOMPLETE',
-                currentPeriodStart: new Date(),
-                currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Default to 30 days
-                cancelAtPeriodEnd: false
+                stripeSubscriptionId: subscription.id,
+                status: subscriptionStatus,
+                currentPeriodStart,
+                currentPeriodEnd,
+                cancelAtPeriodEnd: subscription.cancel_at_period_end || false
             }
         });
 
-        // Create a checkout session for the subscription
-        const session = await stripe.checkout.sessions.create({
-            customer: stripeCustomerId,
-            payment_method_types: ['card'],
-            line_items: [
-                {
-                    price: pricingPlan.stripePriceId,
-                    quantity: 1,
-                },
-            ],
-            mode: 'subscription',
-            success_url: successUrl || defaultSuccessUrl,
-            cancel_url: cancelUrl || defaultCancelUrl,
-            metadata: {
-                userId: user.id,
+        // Update user subscription status
+        await prisma.user.update({
+            where: { id: user.id },
+            data: {
+                subscriptionId: dbSubscription.id,
+                subscriptionStatus: subscriptionStatus,
                 pricingPlanId: pricingPlan.id,
-                tempSubscriptionId: tempSubscription.id
-            },
-            subscription_data: {
-                metadata: {
-                    userId: user.id,
-                    pricingPlanId: pricingPlan.id,
-                    tempSubscriptionId: tempSubscription.id
-                }
+                currentPeriodEnd,
+                hasActiveSubscription: subscriptionStatus === 'ACTIVE' || subscriptionStatus === 'TRIALING'
             }
         });
 
-        // Return the checkout session URL and ID
         res.status(200).json({
-            message: "Subscription checkout session created",
-            checkoutUrl: session.url,
-            sessionId: session.id,
-            tempSubscriptionId: tempSubscription.id
+            message: "Subscription created successfully. Please complete payment to activate.",
+            subscriptionId: subscription.id,
+            hostedInvoiceUrl: hostedInvoiceUrl, // Frontend can redirect to this for payment
+            invoicePdfUrl: invoicePdfUrl,
+            subscription: dbSubscription,
+            paymentInstructions: "Click on the payment link to complete your subscription payment."
         });
         return;
 
@@ -133,6 +164,28 @@ const CreateSubscription = async (req: Request, res: Response) => {
             error: error instanceof Error ? error.message : "Unknown error"
         });
         return;
+    }
+};
+
+// Helper function to map Stripe status to our enum
+const mapStripeStatusToEnum = (stripeStatus: string): SubscriptionStatus => {
+    switch (stripeStatus) {
+        case 'active':
+            return 'ACTIVE';
+        case 'past_due':
+            return 'PAST_DUE';
+        case 'canceled':
+            return 'CANCELED';
+        case 'unpaid':
+            return 'UNPAID';
+        case 'trialing':
+            return 'TRIALING';
+        case 'incomplete':
+            return 'INCOMPLETE';
+        case 'incomplete_expired':
+            return 'INCOMPLETE_EXPIRED';
+        default:
+            return 'INCOMPLETE';
     }
 };
 

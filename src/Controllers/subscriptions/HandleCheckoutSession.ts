@@ -3,7 +3,18 @@ import { Request, Response } from "express";
 import { prisma } from "../../Db/prismaDb";
 import { stripe } from "../../config/stripe";
 import { SubscriptionStatus } from "../../../prisma/generated/prisma";
-import Stripe from 'stripe';
+
+/**
+ * Create a more complete interface for the Stripe Subscription
+ * This defines exactly the properties we need from the Stripe API response
+ */
+interface StripeSubscriptionResponse {
+    id: string;
+    status: string;
+    current_period_start: number;
+    current_period_end: number;
+    cancel_at_period_end: boolean;
+}
 
 /**
  * Safely converts a Stripe timestamp to a JavaScript Date object
@@ -59,8 +70,11 @@ const HandleCheckoutSession = async (req: Request, res: Response) => {
             return;
         }
 
-        // Get subscription details - ensure we get the proper Stripe.Subscription type
-        const stripeSubscription = await stripe.subscriptions.retrieve(stripeSubscriptionId) as Stripe.Subscription;
+        // Get subscription details and force the type
+        const stripeSubscriptionData = await stripe.subscriptions.retrieve(stripeSubscriptionId);
+
+        // Use a type assertion to treat the response as our custom interface
+        const stripeSubscription = stripeSubscriptionData as unknown as StripeSubscriptionResponse;
 
         // Extract user ID and pricing plan ID from metadata
         const userId = session.metadata?.userId;
@@ -78,9 +92,9 @@ const HandleCheckoutSession = async (req: Request, res: Response) => {
         const subscriptionStatus = mapStripeStatusToEnum(stripeSubscription.status);
 
         // Calculate dates from the subscription using our safe function
-        // Calculate dates from the subscription
-        const currentPeriodStart = safeTimestampToDate(stripeSubscription.start_date);
-        const currentPeriodEnd = safeTimestampToDate(stripeSubscription.ended_at);
+        const currentPeriodStart = safeTimestampToDate(stripeSubscription.current_period_start);
+        const currentPeriodEnd = safeTimestampToDate(stripeSubscription.current_period_end);
+
         // Update the temporary subscription if it exists, or create a new one
         let dbSubscription;
 
@@ -163,7 +177,7 @@ const HandleCheckoutSession = async (req: Request, res: Response) => {
             data: {
                 userId,
                 amount: session.amount_total ? session.amount_total / 100 : 0,
-                currency: session.currency || 'usd',
+                currency: session.currency || 'eur',
                 stripePaymentId: typeof session.payment_intent === 'string'
                     ? session.payment_intent
                     : `session_${session.id}`,

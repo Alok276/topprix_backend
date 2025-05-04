@@ -1,4 +1,4 @@
-// src/Controllers/StripeWebhookHandler.ts
+// src/Controllers/webhooks/StripeWebhookHandler.ts
 import { Request, Response } from "express";
 import { stripe, STRIPE_WEBHOOK_SECRET } from "../../config/stripe";
 import { SubscriptionStatus } from "../../../prisma/generated/prisma";

@@ -50,7 +50,7 @@ const CheckFlyerUploadEligibility = async (req: Request, res: Response) => {
             requiresPayment,
             canUpload: true, // They can upload, but might need to pay
             paymentAmount: requiresPayment ? defaultPrice : 0,
-            currency: "usd"
+            currency: "eur"
         });
         return;
 

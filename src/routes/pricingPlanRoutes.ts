@@ -12,7 +12,8 @@ const router = express.Router();
 // Public route for getting pricing plans
 router.get('/pricing-plans', GetPricingPlans);
 
-// Admin-only routes for managinrouter.use(getUserFromEmail);
+// Admin-only routes for managing pricing plans
+router.use(getUserFromEmail);
 router.use(isAdmin);
 
 router.post('/pricing-plans', CreatePricingPlan);

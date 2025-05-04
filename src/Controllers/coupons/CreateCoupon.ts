@@ -104,5 +104,4 @@ const CreateCoupon = async (req: Request, res: Response) => {
         return;
     }
 };
-
 export default CreateCoupon;
