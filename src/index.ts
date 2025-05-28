@@ -53,7 +53,7 @@ import StripeWebhookHandler from "./Controllers/webhooks/StripeWebhookHandler";
 
 dotenv.config();
 const app: Express = express();
-const port = process.env.PORT || 3001;
+const port = process.env.PORT || 3000;
 
 const SESSION_SECRET_KEY = process.env.SESSION_SECRET_KEY;
 
@@ -61,7 +61,12 @@ if (!SESSION_SECRET_KEY) {
   throw new Error("Missing SESSION_SECRET_KEY. Check the .env file.");
 }
 
-app.use(cors({ credentials: true, origin: "" }));
+app.use(cors({
+  credentials: true,
+  origin: true, // This allows any origin
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'stripe-signature']
+}));
 
 app.use(
   session({

@@ -118,9 +118,31 @@ const CreateSubscription = async (req: Request, res: Response) => {
             ? new Date(subscription.current_period_start * 1000)
             : new Date();
 
-        const currentPeriodEnd = subscription.current_period_end
-            ? new Date(subscription.current_period_end * 1000)
-            : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // Default to 30 days
+        let currentPeriodEnd = new Date(currentPeriodStart);
+
+        // Set end date based on plan interval
+        switch (pricingPlan.interval.toLowerCase()) {
+            case 'day':
+                currentPeriodEnd.setDate(currentPeriodEnd.getDate() + 1);
+                break;
+            case 'week':
+                currentPeriodEnd.setDate(currentPeriodEnd.getDate() + 7);
+                break;
+            case 'month':
+                currentPeriodEnd.setMonth(currentPeriodEnd.getMonth() + 1);
+                break;
+            case 'year':
+                currentPeriodEnd.setFullYear(currentPeriodEnd.getFullYear() + 1);
+                break;
+            default:
+                // Default to 30 days if interval is unrecognized
+                currentPeriodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+        }
+
+        console.log('Creating subscription with interval:', pricingPlan.interval);
+        console.log('Start date:', currentPeriodStart);
+        console.log('Calculated end date:', currentPeriodEnd);
+        // In CreateSubscription.ts where you're setting the initial dates
 
         // Create subscription record in database
         const dbSubscription = await prisma.subscription.create({
